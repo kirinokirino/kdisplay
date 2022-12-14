@@ -18,6 +18,8 @@ rgb = "0.8"
 image = "0.24"
 anyhow = "1.0.66"
 
+delta_e = "0.2"
+lab = "0.7"
 
 #once_cell = "1.16"
 #indexmap = { version = "1.9" }

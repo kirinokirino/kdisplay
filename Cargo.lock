@@ -174,6 +174,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
 
 [[package]]
+name = "delta_e"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e950041d5b0b4f9e55a93a444712bdec8aa3a8f89821379a591d11eb8a3da3"
+dependencies = [
+ "lab",
+]
+
+[[package]]
 name = "either"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -419,12 +428,20 @@ name = "kdisplay"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "delta_e",
  "glam",
  "image",
+ "lab",
  "minifb",
  "nanorand",
  "rgb",
 ]
+
+[[package]]
+name = "lab"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcb6fe1d958d9c2a4298cb5024381522038952ebd0fd3af60d00d3844813c93c"
 
 [[package]]
 name = "lazy_static"

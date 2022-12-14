@@ -1,8 +1,10 @@
 #![warn(clippy::nursery, clippy::pedantic, clippy::cargo)]
 use anyhow::Error;
+use delta_e::DE2000;
 use image::imageops::FilterType;
 use image::io::Reader as ImageReader;
 use image::DynamicImage;
+use lab::Lab;
 use minifb::{Key, ScaleMode, Window, WindowOptions};
 use rgb::RGB8;
 struct Screen {
@@ -11,6 +13,7 @@ struct Screen {
     pub input_image_height: usize,
     pub buffer: Vec<u32>,
     pub screen_scale: usize,
+    pub palette: Palette,
 }
 
 impl Screen {
@@ -19,6 +22,7 @@ impl Screen {
         input_resized_width: u32,
         input_resized_height: u32,
         screen_scale: usize,
+        palette: Palette,
     ) -> Self {
         let input_image = input_image.resize(
             input_resized_width,
@@ -37,6 +41,13 @@ impl Screen {
             input_image_height,
             buffer,
             screen_scale,
+            palette,
+        }
+    }
+
+    fn apply_palette(&mut self) {
+        for pixel in self.buffer.iter_mut() {
+            *pixel = self.palette.find_closest(pixel).closest;
         }
     }
 }
@@ -61,15 +72,73 @@ fn to_scaled_buffer(image: &DynamicImage, scale: usize) -> Vec<u32> {
 }
 
 struct Palette {
-    colors: Vec<RGB8>,
+    colors: Vec<Lab>,
+}
+
+impl Palette {
+    pub fn new(colors: &[[u8; 3]]) -> Self {
+        Self {
+            colors: colors.iter().map(Lab::from_rgb).collect(),
+        }
+    }
+    pub fn from_rgb8(colors: &[RGB8]) -> Self {
+        Self {
+            colors: colors
+                .iter()
+                .map(|c| Lab::from_rgb(&[c.r, c.g, c.b]))
+                .collect(),
+        }
+    }
+    pub fn find_closest(&self, color: &u32) -> ColorMix {
+        let target = Lab::from_rgba(&color.to_ne_bytes());
+        let (mut closest_color, mut closest_delta) = (self.colors[0], 101.0);
+        let (mut alternative_color, mut alternative_delta) = (self.colors[0], 101.0);
+        for palette_color in &self.colors {
+            let delta = DE2000::new(target, *palette_color);
+            if delta < closest_delta {
+                alternative_color = closest_color;
+                alternative_delta = closest_delta;
+                closest_color = *palette_color;
+                closest_delta = delta;
+            } else if delta < alternative_delta {
+                alternative_color = *palette_color;
+                alternative_delta = delta;
+            }
+        }
+        ColorMix::new(
+            closest_color,
+            alternative_color,
+            (closest_delta + alternative_delta) / alternative_delta,
+        )
+    }
+}
+
+struct ColorMix {
+    pub closest: u32,
+    alternative: u32,
+    mix: f32,
+}
+
+impl ColorMix {
+    pub fn new(closest: Lab, alternative: Lab, mix: f32) -> Self {
+        let closest = rgb_to_u32(&closest.to_rgb());
+        let alternative = rgb_to_u32(&alternative.to_rgb());
+        Self {
+            closest,
+            alternative,
+            mix,
+        }
+    }
 }
 
 fn main() -> Result<(), Error> {
     let img = ImageReader::open("img.png")?.decode()?;
-
-    let screen = Screen::new(&img, 200, 200, 3);
+    let (w, h, s) = (480, 360, 1);
+    let palette = Palette::new(PALETTE);
+    let mut screen = Screen::new(&img, w, h, 1, palette);
+    screen.apply_palette();
     let mut window = Window::new(
-        "game",
+        "FLOATING",
         screen.input_image_width * screen.screen_scale,
         screen.input_image_height * screen.screen_scale,
         WindowOptions {
@@ -90,4 +159,10 @@ fn main() -> Result<(), Error> {
             .unwrap();
     }
     Ok(())
+}
+
+static PALETTE: &[[u8; 3]] = &[[0xb8, 0xc2, 0xb9], [0x38, 0x2b, 0x26]];
+
+pub fn rgb_to_u32(rgb: &[u8; 3]) -> u32 {
+    (u32::from(rgb[0]) << 16) | ((u32::from(rgb[1])) << 8) | (u32::from(rgb[2]))
 }
