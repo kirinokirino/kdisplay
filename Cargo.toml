@@ -2,7 +2,12 @@
 name = "kdisplay"
 version = "0.1.0"
 edition = "2021"
-
+description = "Prototype exploring palettes and dithering."
+license = "BSD0"
+repository = "https://github.com/kirinokirino/kdisplay"
+readme = "README.md"
+keywords = ["graphics"]
+categories = ["graphics"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
