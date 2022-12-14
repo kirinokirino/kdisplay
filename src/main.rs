@@ -47,7 +47,7 @@ fn to_scaled_buffer(image: &DynamicImage, scale: usize) -> Vec<u32> {
         .chunks(3)
         .map(|v| ((u32::from(v[0]) << 16) | ((u32::from(v[1])) << 8) | (u32::from(v[2]))))
         .collect();
-    let mut scaled: Vec<u32> = Vec::with_capacity(pixels.len() * 4);
+    let mut scaled: Vec<u32> = Vec::with_capacity(pixels.len() * (scale * scale));
     let (width, height): (usize, usize) = (
         image.width().try_into().unwrap(),
         image.height().try_into().unwrap(),
