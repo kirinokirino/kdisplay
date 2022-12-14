@@ -7,6 +7,7 @@ use image::DynamicImage;
 use lab::Lab;
 use minifb::{Key, ScaleMode, Window, WindowOptions};
 use rgb::RGB8;
+use nanorand::{Rng, WyRand};
 struct Screen {
     input_image: DynamicImage,
     pub input_image_width: usize,
@@ -45,9 +46,21 @@ impl Screen {
         }
     }
 
-    fn apply_palette(&mut self) {
-        for pixel in self.buffer.iter_mut() {
-            *pixel = self.palette.find_closest(pixel).closest;
+    fn apply_palette_closest(&mut self) {
+        for pixel in &mut self.buffer {
+            *pixel = self.palette.find_closest(*pixel).closest;
+        }
+    }
+
+    fn apply_palette_proportional_mix(&mut self) {
+        let mut rng = WyRand::new();
+        for pixel in &mut self.buffer {
+            let ColorMix { closest, alternative, mix } = self.palette.find_closest(*pixel);
+            if rng.generate::<f32>() > mix {
+                   *pixel = closest;
+            } else {
+                *pixel = alternative;
+            }
         }
     }
 }
@@ -89,7 +102,7 @@ impl Palette {
                 .collect(),
         }
     }
-    pub fn find_closest(&self, color: &u32) -> ColorMix {
+    pub fn find_closest(&self, color: u32) -> ColorMix {
         let target = Lab::from_rgba(&color.to_ne_bytes());
         let (mut closest_color, mut closest_delta) = (self.colors[0], 101.0);
         let (mut alternative_color, mut alternative_delta) = (self.colors[0], 101.0);
@@ -108,7 +121,7 @@ impl Palette {
         ColorMix::new(
             closest_color,
             alternative_color,
-            (closest_delta + alternative_delta) / alternative_delta,
+            closest_delta / alternative_delta,
         )
     }
 }
@@ -133,10 +146,10 @@ impl ColorMix {
 
 fn main() -> Result<(), Error> {
     let img = ImageReader::open("img.png")?.decode()?;
-    let (w, h, s) = (480, 360, 1);
+    let (w, h, s) = (600, 400, 2);// (480, 360, 1);
     let palette = Palette::new(PALETTE);
-    let mut screen = Screen::new(&img, w, h, 1, palette);
-    screen.apply_palette();
+    let mut screen = Screen::new(&img, w, h, s, palette);
+    screen.apply_palette_proportional_mix();
     let mut window = Window::new(
         "FLOATING",
         screen.input_image_width * screen.screen_scale,
@@ -161,8 +174,10 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-static PALETTE: &[[u8; 3]] = &[[0xb8, 0xc2, 0xb9], [0x38, 0x2b, 0x26]];
+//static PALETTE: &[[u8; 3]] = &[[0xb8, 0xc2, 0xb9], [0x38, 0x2b, 0x26]];
+static PALETTE: &[[u8; 3]] = &[[0xfb, 0xbb, 0xad],[0xee, 0x86, 0x95],[0x4a, 0x7a, 0x96],[0x33,0x3f,0x58],[0x29,0x28,0x31]];
 
+#[must_use]
 pub fn rgb_to_u32(rgb: &[u8; 3]) -> u32 {
     (u32::from(rgb[0]) << 16) | ((u32::from(rgb[1])) << 8) | (u32::from(rgb[2]))
 }
