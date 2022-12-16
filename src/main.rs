@@ -46,12 +46,16 @@ impl Screen {
         }
     }
 
+    pub fn size(&self) -> (usize, usize) {
+        (self.input_image_width * self.screen_scale,
+        self.input_image_height * self.screen_scale)
+    }
+
     fn apply_palette_closest(&mut self) {
         for pixel in &mut self.buffer {
             *pixel = self.palette.find_closest(*pixel).closest;
         }
     }
-
     fn apply_palette_proportional_mix(&mut self) {
         let mut rng = WyRand::new();
         for pixel in &mut self.buffer {
@@ -63,8 +67,32 @@ impl Screen {
             }
         }
     }
+
+    fn apply_palette_dithered(&mut self) {
+        let (width, _) = self.size();
+        for (i, pixel) in self.buffer.iter_mut().enumerate() {
+        	let (y, x) = (i / width, i % width);
+            let ColorMix { closest, alternative, mix } = self.palette.find_closest(*pixel);
+
+            *pixel = dither(x.try_into().unwrap(), y.try_into().unwrap(), closest, alternative, mix);
+        }
+    }
+
 }
 
+const DISPERSION_MATRIX_SIZE: u8 = 9;
+const DISPERSED: [u8; DISPERSION_MATRIX_SIZE as usize] = [1, 7, 4, 5, 8, 3, 6, 2, 9];
+
+pub fn dither(x: i32, y: i32, main_color: u32, alternative_color: u32, mix: f32) -> u32 {
+    let idx_in_dispersion_matrix = ((x - y * 3).abs() % DISPERSION_MATRIX_SIZE as i32) as usize;
+    let color_threshold = DISPERSED[idx_in_dispersion_matrix] as f32 / DISPERSION_MATRIX_SIZE as f32;
+
+    if mix < color_threshold {
+        main_color
+    } else {
+        alternative_color
+    }
+}
 fn to_scaled_buffer(image: &DynamicImage, scale: usize) -> Vec<u32> {
     let pixels: Vec<u32> = image
         .as_bytes()
@@ -149,11 +177,12 @@ fn main() -> Result<(), Error> {
     let (w, h, s) = (600, 400, 2);// (480, 360, 1);
     let palette = Palette::new(PALETTE);
     let mut screen = Screen::new(&img, w, h, s, palette);
-    screen.apply_palette_proportional_mix();
+    screen.apply_palette_dithered();
+    let (screen_w, screen_h) = screen.size();
     let mut window = Window::new(
         "FLOATING",
-        screen.input_image_width * screen.screen_scale,
-        screen.input_image_height * screen.screen_scale,
+        screen_w,
+        screen_h,
         WindowOptions {
             resize: true,
             scale_mode: ScaleMode::Center,
