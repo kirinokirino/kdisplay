@@ -1,71 +1,72 @@
+use anyhow::Result;
 use serde_derive::Deserialize;
 use serde_json;
-#[macro_use]
-use serde_derive;
-use anyhow::{Error, Result};
 
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::read_to_string;
 
 #[derive(Debug, Deserialize)]
-pub struct Palette {
+pub struct JsonPalette {
     name: String,
     author: String,
-    colors: Vec<String>,
+    pub colors: Vec<String>,
 }
 
-impl Display for Palette {
+impl Display for JsonPalette {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let author = if self.author == " " || self.author.len() == 0 {
+            "".to_string()
+        } else {
+            format!(" by {}", self.author)
+        };
         f.write_fmt(format_args!(
-            "{} by {} [{} Colors]",
+            "{}{author} [{} Colors]",
             self.name,
-            self.author,
             self.colors.len()
         ))
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Palettes {
-    bit2: Vec<Palette>,
-    bit3: Vec<Palette>,
-    bit4: Vec<Palette>,
-    bit5: Vec<Palette>,
-    bit6: Vec<Palette>,
-    bit7: Vec<Palette>,
-    bit8: Vec<Palette>,
-    bit9: Vec<Palette>,
-    bit10: Vec<Palette>,
-    bit11: Vec<Palette>,
-    bit12: Vec<Palette>,
-    bit13: Vec<Palette>,
-    bit14: Vec<Palette>,
-    bit15: Vec<Palette>,
-    bit16: Vec<Palette>,
-    bit20: Vec<Palette>,
-    bit24: Vec<Palette>,
-    bit28: Vec<Palette>,
-    bit32: Vec<Palette>,
-    bit36: Vec<Palette>,
-    bit40: Vec<Palette>,
-    bit44: Vec<Palette>,
-    bit48: Vec<Palette>,
-    bit52: Vec<Palette>,
-    bit56: Vec<Palette>,
-    bit60: Vec<Palette>,
-    bit64: Vec<Palette>,
+pub struct JsonPalettes {
+    pub bit2: Vec<JsonPalette>,
+    pub bit3: Vec<JsonPalette>,
+    pub bit4: Vec<JsonPalette>,
+    pub bit5: Vec<JsonPalette>,
+    pub bit6: Vec<JsonPalette>,
+    pub bit7: Vec<JsonPalette>,
+    pub bit8: Vec<JsonPalette>,
+    pub bit9: Vec<JsonPalette>,
+    pub bit10: Vec<JsonPalette>,
+    pub bit11: Vec<JsonPalette>,
+    pub bit12: Vec<JsonPalette>,
+    pub bit13: Vec<JsonPalette>,
+    pub bit14: Vec<JsonPalette>,
+    pub bit15: Vec<JsonPalette>,
+    pub bit16: Vec<JsonPalette>,
+    pub bit20: Vec<JsonPalette>,
+    pub bit24: Vec<JsonPalette>,
+    pub bit28: Vec<JsonPalette>,
+    pub bit32: Vec<JsonPalette>,
+    pub bit36: Vec<JsonPalette>,
+    pub bit40: Vec<JsonPalette>,
+    pub bit44: Vec<JsonPalette>,
+    pub bit48: Vec<JsonPalette>,
+    pub bit52: Vec<JsonPalette>,
+    pub bit56: Vec<JsonPalette>,
+    pub bit60: Vec<JsonPalette>,
+    pub bit64: Vec<JsonPalette>,
     #[serde(rename = "moreThan64bit")]
-    more: Vec<Palette>,
+    pub more: Vec<JsonPalette>,
 }
 
-impl Display for Palettes {
+impl Display for JsonPalettes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("[{} Palettes]", self.len()))
     }
 }
 
-impl Palettes {
+impl JsonPalettes {
     pub fn new() -> Self {
         Self {
             bit2: Vec::new(),
@@ -100,7 +101,7 @@ impl Palettes {
     }
 
     pub fn len(&self) -> usize {
-        let Palettes {
+        let JsonPalettes {
             bit2,
             bit3,
             bit4,
@@ -162,9 +163,9 @@ impl Palettes {
     }
 }
 
-pub fn parse_palettes() -> Result<Palettes> {
+pub fn parse_palettes() -> Result<JsonPalettes> {
     let contents = read_to_string("./palettes.json")?;
-    let palettes: Palettes = serde_json::from_str(&contents)?;
+    let palettes: JsonPalettes = serde_json::from_str(&contents)?;
     println!("Finished parsing {palettes}");
     Ok(palettes)
 }

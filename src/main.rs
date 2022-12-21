@@ -8,6 +8,7 @@ use lab::Lab;
 use minifb::{Key, ScaleMode, Window, WindowOptions};
 use nanorand::{Rng, WyRand};
 use rgb::RGB8;
+extern crate serde_derive;
 
 mod palettes;
 use palettes::parse_palettes;
@@ -149,6 +150,20 @@ impl Palette {
                 .collect(),
         }
     }
+    pub fn from_string(colors: &[String]) -> Self {
+        let mut result = Vec::with_capacity(colors.len());
+        for color in colors {
+            let r = color.chars().take(2).collect::<String>();
+            let g = color.chars().take(2).collect::<String>();
+            let b = color.chars().take(2).collect::<String>();
+            result.push(Lab::from_rgb(&[
+                u8::from_str_radix(&r, 16).unwrap(),
+                u8::from_str_radix(&g, 16).unwrap(),
+                u8::from_str_radix(&b, 16).unwrap(),
+            ]));
+        }
+        Self { colors: result }
+    }
     pub fn find_closest(&self, color: u32) -> ColorMix {
         let target = Lab::from_rgba(&color.to_ne_bytes());
         let (mut closest_color, mut closest_delta) = (self.colors[0], 101.0);
@@ -193,9 +208,16 @@ impl ColorMix {
 
 fn main() -> Result<(), Error> {
     let palettes = parse_palettes().unwrap();
+
+    let mut current_palette = None;
+    for i in 0..5 {
+        let palette = &palettes.bit2[i];
+        println!("{palette}");
+        current_palette = Some(palette);
+    }
+    let palette = Palette::from_string(&current_palette.unwrap().colors);
     let img = ImageReader::open("img.png")?.decode()?;
     let (w, h, s) = (240, 120, 5); // (480, 360, 1);
-    let palette = Palette::new(PALETTE);
     let mut screen = Screen::new(&img, w, h, s, palette);
     screen.apply_palette_dithered();
     let (screen_w, screen_h) = screen.size();
@@ -222,15 +244,6 @@ fn main() -> Result<(), Error> {
     }
     Ok(())
 }
-
-//static PALETTE: &[[u8; 3]] = &[[0xb8, 0xc2, 0xb9], [0x38, 0x2b, 0x26]];
-static PALETTE: &[[u8; 3]] = &[
-    [0xfb, 0xbb, 0xad],
-    [0xee, 0x86, 0x95],
-    [0x4a, 0x7a, 0x96],
-    [0x33, 0x3f, 0x58],
-    [0x29, 0x28, 0x31],
-];
 
 #[must_use]
 pub fn rgb_to_u32(rgb: &[u8; 3]) -> u32 {
