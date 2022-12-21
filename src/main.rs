@@ -6,8 +6,11 @@ use image::io::Reader as ImageReader;
 use image::DynamicImage;
 use lab::Lab;
 use minifb::{Key, ScaleMode, Window, WindowOptions};
-use rgb::RGB8;
 use nanorand::{Rng, WyRand};
+use rgb::RGB8;
+
+mod palettes;
+use palettes::parse_palettes;
 struct Screen {
     input_image: DynamicImage,
     pub input_image_width: usize,
@@ -47,8 +50,10 @@ impl Screen {
     }
 
     pub fn size(&self) -> (usize, usize) {
-        (self.input_image_width * self.screen_scale,
-        self.input_image_height * self.screen_scale)
+        (
+            self.input_image_width * self.screen_scale,
+            self.input_image_height * self.screen_scale,
+        )
     }
 
     fn apply_palette_closest(&mut self) {
@@ -59,9 +64,13 @@ impl Screen {
     fn apply_palette_proportional_mix(&mut self) {
         let mut rng = WyRand::new();
         for pixel in &mut self.buffer {
-            let ColorMix { closest, alternative, mix } = self.palette.find_closest(*pixel);
+            let ColorMix {
+                closest,
+                alternative,
+                mix,
+            } = self.palette.find_closest(*pixel);
             if rng.generate::<f32>() > mix {
-                   *pixel = closest;
+                *pixel = closest;
             } else {
                 *pixel = alternative;
             }
@@ -71,13 +80,22 @@ impl Screen {
     fn apply_palette_dithered(&mut self) {
         let (width, _) = self.size();
         for (i, pixel) in self.buffer.iter_mut().enumerate() {
-        	let (y, x) = (i / width, i % width);
-            let ColorMix { closest, alternative, mix } = self.palette.find_closest(*pixel);
+            let (y, x) = (i / width, i % width);
+            let ColorMix {
+                closest,
+                alternative,
+                mix,
+            } = self.palette.find_closest(*pixel);
 
-            *pixel = dither(x.try_into().unwrap(), y.try_into().unwrap(), closest, alternative, mix);
+            *pixel = dither(
+                x.try_into().unwrap(),
+                y.try_into().unwrap(),
+                closest,
+                alternative,
+                mix,
+            );
         }
     }
-
 }
 
 const DISPERSION_MATRIX_SIZE: u8 = 9;
@@ -85,7 +103,8 @@ const DISPERSED: [u8; DISPERSION_MATRIX_SIZE as usize] = [1, 7, 4, 5, 8, 3, 6, 2
 
 pub fn dither(x: i32, y: i32, main_color: u32, alternative_color: u32, mix: f32) -> u32 {
     let idx_in_dispersion_matrix = ((x - y * 3).abs() % DISPERSION_MATRIX_SIZE as i32) as usize;
-    let color_threshold = DISPERSED[idx_in_dispersion_matrix] as f32 / DISPERSION_MATRIX_SIZE as f32;
+    let color_threshold =
+        DISPERSED[idx_in_dispersion_matrix] as f32 / DISPERSION_MATRIX_SIZE as f32;
 
     if mix < color_threshold {
         main_color
@@ -173,8 +192,9 @@ impl ColorMix {
 }
 
 fn main() -> Result<(), Error> {
+    let palettes = parse_palettes().unwrap();
     let img = ImageReader::open("img.png")?.decode()?;
-    let (w, h, s) = (600, 400, 2);// (480, 360, 1);
+    let (w, h, s) = (240, 120, 5); // (480, 360, 1);
     let palette = Palette::new(PALETTE);
     let mut screen = Screen::new(&img, w, h, s, palette);
     screen.apply_palette_dithered();
@@ -204,7 +224,13 @@ fn main() -> Result<(), Error> {
 }
 
 //static PALETTE: &[[u8; 3]] = &[[0xb8, 0xc2, 0xb9], [0x38, 0x2b, 0x26]];
-static PALETTE: &[[u8; 3]] = &[[0xfb, 0xbb, 0xad],[0xee, 0x86, 0x95],[0x4a, 0x7a, 0x96],[0x33,0x3f,0x58],[0x29,0x28,0x31]];
+static PALETTE: &[[u8; 3]] = &[
+    [0xfb, 0xbb, 0xad],
+    [0xee, 0x86, 0x95],
+    [0x4a, 0x7a, 0x96],
+    [0x33, 0x3f, 0x58],
+    [0x29, 0x28, 0x31],
+];
 
 #[must_use]
 pub fn rgb_to_u32(rgb: &[u8; 3]) -> u32 {
