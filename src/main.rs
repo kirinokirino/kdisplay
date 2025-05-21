@@ -1,4 +1,6 @@
 #![warn(clippy::nursery, clippy::pedantic, clippy::cargo)]
+#![allow(clippy::use_self, clippy::module_name_repetitions)]
+
 use delta_e::DE2000;
 use image::imageops::FilterType;
 use image::io::Reader as ImageReader;
@@ -23,7 +25,7 @@ impl Screen {
             .resize_exact(w, h, FilterType::Nearest)
             .to_rgb8()
             .pixels()
-            .map(|pixel| rgb_to_u32(&[pixel[2], pixel[1], pixel[0]]))
+            .map(|pixel| rgb_to_u32(&pixel.0))
             .collect();
         let (width, height) = (w as usize, h as usize);
 
@@ -57,10 +59,15 @@ impl Screen {
 
 const DISPERSION_MATRIX_SIZE: u8 = 9;
 const DISPERSED: [u8; DISPERSION_MATRIX_SIZE as usize] = [1, 7, 4, 5, 8, 3, 6, 2, 9];
+#[must_use]
 pub fn dither(x: i32, y: i32, main_color: u32, alternative_color: u32, mix: f32) -> u32 {
-    let idx = ((x - y * 3).abs() as usize) % DISPERSION_MATRIX_SIZE as usize;
+    let idx = ((x - y * 3).unsigned_abs() as usize) % DISPERSION_MATRIX_SIZE as usize;
     let threshold = f32::from(DISPERSED[idx]) / f32::from(DISPERSION_MATRIX_SIZE);
-    if mix < threshold { main_color } else { alternative_color }
+    if mix < threshold {
+        main_color
+    } else {
+        alternative_color
+    }
 }
 
 struct Palette {
@@ -82,7 +89,8 @@ impl Palette {
         }
     }
     pub fn find_closest(&self, color: u32) -> ColorMix {
-        let target = Lab::from_rgba(&color.to_ne_bytes());
+        let [r, g, b] = u32_to_rgb(color);
+        let target = Lab::from_rgb(&[r, g, b]);
         let (mut closest_color, mut closest_delta) = (self.colors[0], 101.0);
         let (mut alternative_color, mut alternative_delta) = (self.colors[0], 101.0);
         for palette_color in &self.colors {
@@ -113,8 +121,8 @@ struct ColorMix {
 
 fn main() {
     let palettes = parse_palettes().unwrap();
-    let palette = Palette::from_string(&palettes.bit8[9].colors);
-    // let palette = Palette::from_string(&palettes.more[17].colors);
+    // let palette = Palette::from_string(&palettes.bit8[9].colors);
+    let palette = Palette::from_string(&palettes.more[17].colors);
     println!("Palette: {}", palettes.more[17].name);
 
     let img = ImageReader::open("img.png").unwrap().decode().unwrap();
@@ -145,5 +153,14 @@ fn main() {
 
 #[must_use]
 pub fn rgb_to_u32(rgb: &[u8; 3]) -> u32 {
-    u32::from(rgb[0]) | u32::from(rgb[1]) << 8 | u32::from(rgb[2]) << 16
+    u32::from(rgb[0]) << 16 | u32::from(rgb[1]) << 8 | u32::from(rgb[2])
+}
+
+#[must_use]
+pub const fn u32_to_rgb(color: u32) -> [u8; 3] {
+    [
+        ((color >> 16) & 0xFF) as u8, // R
+        ((color >> 8) & 0xFF) as u8,  // G
+        (color & 0xFF) as u8,         // B
+    ]
 }

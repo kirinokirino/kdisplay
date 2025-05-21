@@ -1,6 +1,5 @@
 use anyhow::Result;
 use serde_derive::Deserialize;
-use serde_json;
 
 use std::fmt::Display;
 use std::fs::read_to_string;
@@ -14,8 +13,8 @@ pub struct JsonPalette {
 
 impl Display for JsonPalette {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let author = if self.author == " " || self.author.len() == 0 {
-            "".to_string()
+        let author = if self.author == " " || self.author.is_empty() {
+            String::new()
         } else {
             format!(" by {}", self.author)
         };
@@ -67,39 +66,6 @@ impl Display for JsonPalettes {
 }
 
 impl JsonPalettes {
-    pub fn new() -> Self {
-        Self {
-            bit2: Vec::new(),
-            bit3: Vec::new(),
-            bit4: Vec::new(),
-            bit5: Vec::new(),
-            bit6: Vec::new(),
-            bit7: Vec::new(),
-            bit8: Vec::new(),
-            bit9: Vec::new(),
-            bit10: Vec::new(),
-            bit11: Vec::new(),
-            bit12: Vec::new(),
-            bit13: Vec::new(),
-            bit14: Vec::new(),
-            bit15: Vec::new(),
-            bit16: Vec::new(),
-            bit20: Vec::new(),
-            bit24: Vec::new(),
-            bit28: Vec::new(),
-            bit32: Vec::new(),
-            bit36: Vec::new(),
-            bit40: Vec::new(),
-            bit44: Vec::new(),
-            bit48: Vec::new(),
-            bit52: Vec::new(),
-            bit56: Vec::new(),
-            bit60: Vec::new(),
-            bit64: Vec::new(),
-            more: Vec::new(),
-        }
-    }
-
     pub fn len(&self) -> usize {
         let JsonPalettes {
             bit2,
