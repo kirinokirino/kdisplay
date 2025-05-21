@@ -12,11 +12,10 @@ categories = ["graphics"]
 
 [dependencies]
 glam = { version = "0.22", features = ["fast-math", "debug-glam-assert"] }
-minifb = { version = "0.23", default-features = false, features = ["x11"] }
-nanorand = "0.7"
 rgb = "0.8"
 image = { version = "0.24", default-features = false, features = ["png"]}
 anyhow = "1.0.66"
+memmap2 = { version = "0.9" }
 
 delta_e = "0.2"
 lab = "0.7"

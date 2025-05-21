@@ -6,7 +6,8 @@ use image::imageops::FilterType;
 use image::io::Reader as ImageReader;
 use image::DynamicImage;
 use lab::Lab;
-use minifb::{Key, ScaleMode, Window, WindowOptions};
+
+use std::io::Write;
 
 extern crate serde_derive;
 
@@ -15,7 +16,7 @@ use palettes::parse_palettes;
 struct Screen {
     pub width: usize,
     pub height: usize,
-    pub buffer: Vec<u32>,
+    pub buffer: Vec<u8>,
     pub palette: Palette,
 }
 
@@ -23,10 +24,8 @@ impl Screen {
     pub fn new(input_image: &DynamicImage, w: u32, h: u32, palette: Palette) -> Self {
         let buffer = input_image
             .resize_exact(w, h, FilterType::Nearest)
-            .to_rgb8()
-            .pixels()
-            .map(|pixel| rgb_to_u32(&pixel.0))
-            .collect();
+            .to_rgba8()
+            .into_vec();
         let (width, height) = (w as usize, h as usize);
 
         Self {
@@ -38,29 +37,53 @@ impl Screen {
     }
 
     fn apply_palette_dithered(&mut self) {
-        for (i, pixel) in self.buffer.iter_mut().enumerate() {
+        for (i, pixel) in self.buffer.chunks_exact_mut(4).enumerate() {
+            let [r, g, b, a] = *pixel else { continue; }; // skip malformed pixels
             let (y, x) = (i / self.width, i % self.width);
             let ColorMix {
                 closest,
                 alternative,
                 mix,
-            } = self.palette.find_closest(*pixel);
+            } = self.palette.find_closest(r, g, b, a);
 
-            *pixel = dither(
+            let [r, g, b] = dither(
                 x.try_into().unwrap(),
                 y.try_into().unwrap(),
                 closest,
                 alternative,
                 mix,
             );
+            pixel.copy_from_slice(&[r, g, b, a]);
         }
+    }
+
+    pub fn display(&self) {
+        let file = std::fs::File::options()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open("/tmp/imagesink")
+            .unwrap();
+        let size = 640 * 480 * 4;
+        file.set_len(size.try_into().unwrap()).unwrap();
+        let mut mmap = unsafe { memmap2::MmapMut::map_mut(&file).unwrap() };
+        if let Some(err) = mmap.lock().err() {
+            panic!("{err}");
+        }
+        let _ = (&mut mmap[..]).write_all(&self.buffer.as_slice());
     }
 }
 
 const DISPERSION_MATRIX_SIZE: u8 = 9;
 const DISPERSED: [u8; DISPERSION_MATRIX_SIZE as usize] = [1, 7, 4, 5, 8, 3, 6, 2, 9];
 #[must_use]
-pub fn dither(x: i32, y: i32, main_color: u32, alternative_color: u32, mix: f32) -> u32 {
+pub fn dither(
+    x: i32,
+    y: i32,
+    main_color: [u8; 3],
+    alternative_color: [u8; 3],
+    mix: f32,
+) -> [u8; 3] {
     let idx = ((x - y * 3).unsigned_abs() as usize) % DISPERSION_MATRIX_SIZE as usize;
     let threshold = f32::from(DISPERSED[idx]) / f32::from(DISPERSION_MATRIX_SIZE);
     if mix < threshold {
@@ -88,8 +111,7 @@ impl Palette {
                 .collect(),
         }
     }
-    pub fn find_closest(&self, color: u32) -> ColorMix {
-        let [r, g, b] = u32_to_rgb(color);
+    pub fn find_closest(&self, r: u8, g: u8, b: u8, _a: u8) -> ColorMix {
         let target = Lab::from_rgb(&[r, g, b]);
         let (mut closest_color, mut closest_delta) = (self.colors[0], 101.0);
         let (mut alternative_color, mut alternative_delta) = (self.colors[0], 101.0);
@@ -106,17 +128,17 @@ impl Palette {
             }
         }
         ColorMix {
-            closest: rgb_to_u32(&closest_color.to_rgb()),
-            alternative: rgb_to_u32(&alternative_color.to_rgb()),
+            closest: closest_color.to_rgb(),
+            alternative: alternative_color.to_rgb(),
             mix: closest_delta / alternative_delta,
         }
     }
 }
 
 struct ColorMix {
-    pub closest: u32,
-    alternative: u32,
-    mix: f32,
+    pub closest: [u8; 3],
+    pub alternative: [u8; 3],
+    pub mix: f32,
 }
 
 fn main() {
@@ -129,38 +151,8 @@ fn main() {
     let mut screen = Screen::new(&img, 640, 480, palette);
     screen.apply_palette_dithered();
 
-    let mut window = Window::new(
-        "FLOATING",
-        screen.width,
-        screen.height,
-        WindowOptions {
-            resize: true,
-            scale_mode: ScaleMode::Center,
-            ..WindowOptions::default()
-        },
-    )
-    .expect("Unable to open Window");
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        window
-            .update_with_buffer(
-                &screen.buffer,
-                screen.width as usize,
-                screen.height as usize,
-            )
-            .unwrap();
+    loop {
+        screen.display();
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
-}
-
-#[must_use]
-pub fn rgb_to_u32(rgb: &[u8; 3]) -> u32 {
-    u32::from(rgb[0]) << 16 | u32::from(rgb[1]) << 8 | u32::from(rgb[2])
-}
-
-#[must_use]
-pub const fn u32_to_rgb(color: u32) -> [u8; 3] {
-    [
-        ((color >> 16) & 0xFF) as u8, // R
-        ((color >> 8) & 0xFF) as u8,  // G
-        (color & 0xFF) as u8,         // B
-    ]
 }
