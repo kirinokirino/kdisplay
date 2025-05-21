@@ -7,8 +7,8 @@ use std::fs::read_to_string;
 
 #[derive(Debug, Deserialize)]
 pub struct JsonPalette {
-    name: String,
-    author: String,
+    pub name: String,
+    pub author: String,
     pub colors: Vec<String>,
 }
 
