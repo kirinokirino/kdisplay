@@ -20,7 +20,7 @@ struct Screen {
 }
 
 impl Screen {
-    pub fn new(input_image: &DynamicImage, w: u32, h: u32, palette: Palette) -> Self {
+    pub fn from_image(input_image: &DynamicImage, w: u32, h: u32, palette: Palette) -> Self {
         let buffer = input_image
             .resize_exact(w, h, FilterType::Nearest)
             .to_rgba8()
@@ -79,6 +79,10 @@ impl Screen {
             self.buffer.clone(),
         )
         .expect("Failed to create image from buffer")
+    }
+
+    pub fn save(&self, path: &str) -> image::ImageResult<()> {
+        self.render().save(path)
     }
 }
 
@@ -156,7 +160,7 @@ fn main() {
     let mut palette_id = 0;
     loop {
         let palette = &palettes.more[palette_id];
-        let mut screen = Screen::new(&img, 640, 480, Palette::new(&palette.colors));
+        let mut screen = Screen::from_image(&img, 640, 480, Palette::new(&palette.colors));
         screen.apply_palette_dithered();
         println!("\nPalette: {}", palette);
 
@@ -168,8 +172,8 @@ fn main() {
             print!(".");
             std::io::stdout().flush().unwrap();
         }
-        let img = screen.render();
-        img.save("img.png").unwrap();
+        
+        screen.save("img.png").unwrap();
         palette_id = (palette_id + 1) % palettes.more.len();
     }
 }
