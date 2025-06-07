@@ -15,7 +15,6 @@ mod palettes;
 use palettes::parse_palettes;
 struct Screen {
     pub width: usize,
-    pub height: usize,
     pub buffer: Vec<u8>,
     pub palette: Palette,
 }
@@ -26,11 +25,9 @@ impl Screen {
             .resize_exact(w, h, FilterType::Nearest)
             .to_rgba8()
             .into_vec();
-        let (width, height) = (w as usize, h as usize);
 
         Self {
-            width,
-            height,
+            width: w as usize,
             buffer,
             palette,
         }
@@ -38,7 +35,9 @@ impl Screen {
 
     fn apply_palette_dithered(&mut self) {
         for (i, pixel) in self.buffer.chunks_exact_mut(4).enumerate() {
-            let [r, g, b, a] = *pixel else { continue; }; // skip malformed pixels
+            let [r, g, b, a] = *pixel else {
+                continue;
+            }; // skip malformed pixels
             let (y, x) = (i / self.width, i % self.width);
             let ColorMix {
                 closest,
@@ -72,6 +71,15 @@ impl Screen {
         }
         let _ = (&mut mmap[..]).write_all(&self.buffer.as_slice());
     }
+
+    pub fn render(&self) -> image::RgbaImage {
+        image::RgbaImage::from_raw(
+            self.width as u32,
+            (self.buffer.len() / 4 / self.width) as u32,
+            self.buffer.clone(),
+        )
+        .expect("Failed to create image from buffer")
+    }
 }
 
 const DISPERSION_MATRIX_SIZE: u8 = 9;
@@ -98,7 +106,7 @@ struct Palette {
 }
 
 impl Palette {
-    pub fn from_string(colors: &[String]) -> Self {
+    pub fn new(colors: &[String]) -> Self {
         Self {
             colors: colors
                 .iter()
@@ -111,8 +119,8 @@ impl Palette {
                 .collect(),
         }
     }
-    pub fn find_closest(&self, r: u8, g: u8, b: u8, _a: u8) -> ColorMix {
-        let target = Lab::from_rgb(&[r, g, b]);
+    pub fn find_closest(&self, r: u8, g: u8, b: u8, a: u8) -> ColorMix {
+        let target = Lab::from_rgba(&[r, g, b, a]);
         let (mut closest_color, mut closest_delta) = (self.colors[0], 101.0);
         let (mut alternative_color, mut alternative_delta) = (self.colors[0], 101.0);
         for palette_color in &self.colors {
@@ -143,16 +151,25 @@ struct ColorMix {
 
 fn main() {
     let palettes = parse_palettes().unwrap();
-    // let palette = Palette::from_string(&palettes.bit8[9].colors);
-    let palette = Palette::from_string(&palettes.more[17].colors);
-    println!("Palette: {}", palettes.more[17].name);
-
     let img = ImageReader::open("img.png").unwrap().decode().unwrap();
-    let mut screen = Screen::new(&img, 640, 480, palette);
-    screen.apply_palette_dithered();
 
+    let mut palette_id = 0;
     loop {
-        screen.display();
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        let palette = &palettes.more[palette_id];
+        let mut screen = Screen::new(&img, 640, 480, Palette::new(&palette.colors));
+        screen.apply_palette_dithered();
+        println!("\nPalette: {}", palette);
+
+        let mut counter = 0;
+        while counter < 50 {
+            screen.display();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            counter += 1;
+            print!(".");
+            std::io::stdout().flush().unwrap();
+        }
+        let img = screen.render();
+        img.save("img.png").unwrap();
+        palette_id = (palette_id + 1) % palettes.more.len();
     }
 }
